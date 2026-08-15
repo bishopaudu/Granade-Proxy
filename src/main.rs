@@ -16,30 +16,37 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(120);
 const CONTROL_PORT: u16 = 9051;
 
+/// torproxy: expose one or more local servers as Tor onion services.
 #[derive(Parser)]
 #[command(name = "torproxy")]
 struct Cli {
+    /// One or more local addresses to expose, e.g. localhost:3000 localhost:8080
     #[arg(required = true, num_args = 1..)]
     targets: Vec<String>,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
+       tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "info".into()),
         )
         .init();
 
+
     let cli = Cli::parse();
 
+    // Fail fast on any bad target before spawning tor at all.
     for target in &cli.targets {
-        tokio::net::lookup_host(target)
-            .await
-            .map_err(|e| anyhow::anyhow!("invalid target '{target}': {e}"))?;
-    }
+    let _ = tokio::net::lookup_host(target)
+        .await
+        .map_err(|e| anyhow::anyhow!("invalid target '{target}': {e}"))?;
+}
 
     let data_dir = std::env::temp_dir().join("torproxy-data");
+    // One tor daemon, shared across every onion service we create below -
+    // one bootstrap cost regardless of how many targets are exposed.
     let mut tor = TorController::spawn(data_dir, CONTROL_PORT).await?;
     tracing::info!("tor daemon bootstrapped and control port ready");
 
@@ -48,15 +55,13 @@ async fn main() -> anyhow::Result<()> {
     let mut services = JoinSet::new();
 
     for target in cli.targets {
-        // Bind to port 0 so the OS hands us a free local port - tor
-        // will forward onion traffic here, and we forward onward to
-        // the real target ourselves, keeping our proxy logic in the loop.
+        // Each target gets its own local listener that tor forwards
+        // onion traffic to, and its own ADD_ONION call - but all
+        // sharing the same underlying tor process and control connection.
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let internal_addr = listener.local_addr()?;
 
-        let onion_id = tor
-            .add_onion(80, &internal_addr.to_string())
-            .await?;
+        let onion_id = tor.add_onion(80, &internal_addr.to_string()).await?;
         tracing::info!("exposing {target} at: http://{onion_id}.onion");
 
         let limiter = connection_limiter.clone();
@@ -78,9 +83,6 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Accepts connections tor forwards to our internal port, and proxies
-/// each one onward to the real target - same role as before, just
-/// with a plain TcpListener instead of an onion-service stream source.
 async fn run_service(
     target: String,
     listener: TcpListener,
@@ -169,5 +171,5 @@ where
 
 fn short_id() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    format!("{:x}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() & 0xFFFFFF)
+    return format!("{:x}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() & 0xFFFFFF)
 }

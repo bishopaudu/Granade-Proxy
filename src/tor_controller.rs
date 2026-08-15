@@ -10,6 +10,7 @@ use tokio::time::sleep;
 pub struct TorController {
     child: Child,
     control_stream: BufReader<TcpStream>,
+     #[allow(dead_code)]
     pub control_port: u16,
 }
 

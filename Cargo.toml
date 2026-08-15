@@ -4,16 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-arti-client = { version = "0.44.0", features = ["tokio", "onion-service-service"] }
 tokio = { version = "1.53.0", features = ["rt-multi-thread", "macros", "signal", "process", "net", "fs", "time", "io-util"] }
 tracing = { version = "0.1.44", features = ["log"] }
-tracing-subscriber = "0.3.23"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
-futures = "0.3"
 axum = "0.8.9"
-tor-hsservice = "0.44.0"
-tor-cell = "0.44.0"
-tor-proto = "0.44.0"
-safelog = "0.9.0"
 clap = { version = "4.6.2", features = ["derive"] }
 hex = "0.4.3"
